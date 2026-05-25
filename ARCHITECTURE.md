@@ -74,6 +74,7 @@ ppcstockman/
 - `app/api/inventory/label/route.ts`
 - `app/api/inventory/budget/route.ts`
 - `app/api/inventory/import/route.ts`
+- `app/api/loyverse/webhook/route.ts` (Loyverse API integration)
 
 **Features**:
 - Item tracking with name, description, barcode, category, pricing
@@ -82,6 +83,7 @@ ppcstockman/
 - Label generation (prototype text format, ready for PDF enhancement)
 - Daily budget tracking (input/output value summary)
 - Bulk import capabilities
+- Loyverse API integration via webhook endpoint for real-time synchronization
 
 **Redis Schema**:
 - `inventory:item:{itemId}` - Hash storing item details
@@ -211,6 +213,7 @@ with appropriate HTTP status codes (400, 401, 403, 404, 500).
    UPSTASH_REDIS_REST_URL=your_upstash_url
    UPSTASH_REDIS_REST_TOKEN=your_upstash_token
    JWT_SECRET=your_jwt_secret
+   LOYVERSE_WEBHOOK_TOKEN=your_loyverse_webhook_token
    ```
 3. Run `npm install`
 4. Run `npm run dev`
@@ -234,6 +237,7 @@ with appropriate HTTP status codes (400, 401, 403, 404, 500).
 5. **User Interface**: Enhance frontend with better UX/UI
 6. **Audit Trail**: Detailed logging of all system operations
 7. **Integration**: API for accounting software integration
+8. **Loyverse Enhancements**: Add support for additional Loyverse endpoints (transactions, customers, etc.)
 
 ### Backend Extension
 - Add new API routes under `app/api/` following existing patterns
