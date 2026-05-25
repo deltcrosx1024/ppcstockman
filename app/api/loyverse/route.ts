@@ -149,6 +149,7 @@ export async function GET(request: Request) {
       error?: string;
       barcode?: string;
       name?: string;
+      action?: 'created' | 'updated' | 'deleted';
     }> = [];
 
     for (const rawItem of rawItems) {
@@ -236,7 +237,7 @@ export async function POST(request: Request) {
       error?: string;
       barcode?: string;
       name?: string;
-      action?: 'created' | 'updated';
+      action?: 'created' | 'updated' | 'deleted';
     }> = [];
 
     for (const rawItem of items) {
