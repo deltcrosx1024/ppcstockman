@@ -32,20 +32,22 @@ export async function POST(request: Request) {
         username,
         email: `${username}@ppcstock.local`,
         role: 'super_admin',
+        organizationId: 'org_001', // Default org for prototype
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         isActive: true
       };
       
-      // Store user in Redis
-      await redis.hSet(`user:${newUserId}`, 'id', newUserId);
-      await redis.hSet(`user:${newUserId}`, 'username', username);
-      await redis.hSet(`user:${newUserId}`, 'email', superAdmin.email);
-      await redis.hSet(`user:${newUserId}`, 'role', superAdmin.role);
-      await redis.hSet(`user:${newUserId}`, 'passwordHash', hashedPassword);
-      await redis.hSet(`user:${newUserId}`, 'createdAt', superAdmin.createdAt);
-      await redis.hSet(`user:${newUserId}`, 'updatedAt', superAdmin.updatedAt);
-      await redis.hSet(`user:${newUserId}`, 'isActive', superAdmin.isActive.toString());
+       // Store user in Redis
+       await redis.hSet(`user:${newUserId}`, 'id', newUserId);
+       await redis.hSet(`user:${newUserId}`, 'username', username);
+       await redis.hSet(`user:${newUserId}`, 'email', superAdmin.email);
+       await redis.hSet(`user:${newUserId}`, 'role', superAdmin.role);
+       await redis.hSet(`user:${newUserId}`, 'organizationId', 'org_001'); // Default org for prototype
+       await redis.hSet(`user:${newUserId}`, 'passwordHash', hashedPassword);
+       await redis.hSet(`user:${newUserId}`, 'createdAt', superAdmin.createdAt);
+       await redis.hSet(`user:${newUserId}`, 'updatedAt', superAdmin.updatedAt);
+       await redis.hSet(`user:${newUserId}`, 'isActive', superAdmin.isActive.toString());
       
       // Create username lookup
       await redis.set(`user:username:${username}`, newUserId);
@@ -61,28 +63,29 @@ export async function POST(request: Request) {
       });
     }
     
-    // Get user data (excluding password hash)
-    const userData = await redis.hGetAll(`user:${userId}`);
-    
-    // Verify password
-    const hashedPassword = userData.passwordHash;
-    if (!hashedPassword || !verifyPassword(password, hashedPassword)) {
-      return NextResponse.json(
-        { error: 'Invalid credentials' },
-        { status: 401 }
-      );
-    }
-    
-    // Get user data (excluding password hash)
-    const user: Omit<User, 'passwordHash'> = {
-      id: userData.id,
-      username: userData.username,
-      email: userData.email,
-      role: userData.role as 'super_admin' | 'admin' | 'employee' | 'cashier',
-      createdAt: userData.createdAt,
-      updatedAt: userData.updatedAt,
-      isActive: userData.isActive === 'true'
-    };
+     // Get user data (excluding password hash)
+     const userData = await redis.hGetAll(`user:${userId}`);
+     
+     // Verify password
+     const hashedPassword = userData.passwordHash;
+     if (!hashedPassword || !verifyPassword(password, hashedPassword)) {
+       return NextResponse.json(
+         { error: 'Invalid credentials' },
+         { status: 401 }
+       );
+     }
+     
+     // Get user data (excluding password hash)
+     const user: Omit<User, 'passwordHash'> = {
+       id: userData.id,
+       username: userData.username,
+       email: userData.email,
+       role: userData.role as 'super_admin' | 'admin' | 'employee' | 'cashier',
+       organizationId: userData.organizationId,
+       createdAt: userData.createdAt,
+       updatedAt: userData.updatedAt,
+       isActive: userData.isActive === 'true'
+     };
     
     // Generate token
     const { generateToken } = await import('@/lib/auth');

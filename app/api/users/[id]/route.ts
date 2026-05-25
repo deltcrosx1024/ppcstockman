@@ -9,6 +9,7 @@ function mapUserData(userData: Record<string, string>): Omit<User, 'passwordHash
     username: userData.username,
     email: userData.email,
     role: userData.role as 'super_admin' | 'admin' | 'employee' | 'cashier',
+    organizationId: userData.organizationId,
     createdAt: userData.createdAt,
     updatedAt: userData.updatedAt,
     isActive: userData.isActive === 'true'

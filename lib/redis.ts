@@ -1,6 +1,9 @@
 ﻿import { Redis as UpstashRedis } from '@upstash/redis';
 import { hashPassword } from './auth';
 
+// Project identifier to avoid key conflicts when sharing Redis database
+const PROJECT_ID = process.env.REDIS_PROJECT_ID || 'ppcstockman';
+
 interface RedisStorage {
   get(key: string): Promise<string | null>;
   set(key: string, value: string): Promise<unknown>;
@@ -17,59 +20,63 @@ interface RedisStorage {
   zRangeByScore(key: string, min: number, max: number): Promise<Array<{ value: string; score: number }>>;
 }
 
+function prefixKey(key: string): string {
+  return `${PROJECT_ID}:${key}`;
+}
+
 function wrapUpstashClient(client: UpstashRedis): RedisStorage {
   return {
-    get: client.get.bind(client),
-    set: client.set.bind(client),
+    get: (key: string) => client.get(prefixKey(key)),
+    set: (key: string, value: string) => client.set(prefixKey(key), value),
     hGet: async (hashKey: string, field: string) => {
-      const result = await client.hget(hashKey, field);
+      const result = await client.hget(prefixKey(hashKey), field);
       return typeof result === 'string' ? result : null;
     },
     hSet: async (hashKey: string, field: string, value: string) => {
-      await client.hset(hashKey, { [field]: value });
+      await client.hset(prefixKey(hashKey), { [field]: value });
     },
     hGetAll: async (hashKey: string) => {
-      const result = await client.hgetall<Record<string, string>>(hashKey);
+      const result = await client.hgetall<Record<string, string>>(prefixKey(hashKey));
       return result ?? {};
     },
-    del: client.del.bind(client),
+    del: (key: string) => client.del(prefixKey(key)),
     sAdd: async (setKey: string, member: string) => {
-      await client.sadd(setKey, member);
+      await client.sadd(prefixKey(setKey), member);
     },
     sMembers: async (setKey: string) => {
       // Upstash client may return a single string or an array; normalize to string[]
-      const result = await (client as any).smembers(setKey);
+      const result = await (client as any).smembers(prefixKey(setKey));
       if (!result) return [];
       return Array.isArray(result) ? result : [String(result)];
     },
     sRem: async (setKey: string, member: string) => {
-      await client.srem(setKey, member);
+      await client.srem(prefixKey(setKey), member);
     },
     sIsMember: async (setKey: string, member: string) => {
-      const result = await client.sismember(setKey, member);
+      const result = await client.sismember(prefixKey(setKey), member);
       return Boolean(result);
     },
     incr: async (key: string) => {
-      const result = await client.incr(key);
+      const result = await client.incr(prefixKey(key));
       return typeof result === 'number' ? result : parseInt(String(result), 10);
     },
-      zAdd: async (key: string, score: number, member: string) => {
-        // Use a hash as a portable sorted-set fallback: member => score
-        await client.hset(key, { [member]: score.toString() });
-      },
-      zRangeByScore: async (key: string, min: number, max: number) => {
-        // Read all entries from the hash and filter by score
-        const all = await client.hgetall<Record<string, string>>(key);
-        if (!all) return [];
-        const result: Array<{ value: string; score: number }> = [];
-        for (const member in all) {
-          const score = parseFloat(all[member]);
-          if (!Number.isNaN(score) && score >= min && score <= max) {
-            result.push({ value: member, score });
-          }
+    zAdd: async (key: string, score: number, member: string) => {
+      // Use a hash as a portable sorted-set fallback: member => score
+      await client.hset(prefixKey(key), { [member]: score.toString() });
+    },
+    zRangeByScore: async (key: string, min: number, max: number) => {
+      // Read all entries from the hash and filter by score
+      const all = await client.hgetall<Record<string, string>>(prefixKey(key));
+      if (!all) return [];
+      const result: Array<{ value: string; score: number }> = [];
+      for (const member in all) {
+        const score = parseFloat(all[member]);
+        if (!Number.isNaN(score) && score >= min && score <= max) {
+          result.push({ value: member, score });
         }
-        return result.sort((a, b) => a.score - b.score);
       }
+      return result.sort((a, b) => a.score - b.score);
+    }
   };
 }
 
