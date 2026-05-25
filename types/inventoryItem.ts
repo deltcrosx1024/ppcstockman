@@ -9,6 +9,7 @@ export interface InventoryItem {
   quantityInStock: number;
   reorderLevel: number; // Minimum stock level before reordering
   supplier: string;
+  organizationId: string; // For multi-tenancy
   createdAt: string;
   updatedAt: string;
   isActive: boolean;
@@ -24,6 +25,7 @@ export interface InventoryItemCreateInput {
   quantityInStock: number;
   reorderLevel: number;
   supplier: string;
+  // organizationId will be taken from the user's token
 }
 
 export interface InventoryItemUpdateInput {
@@ -37,4 +39,5 @@ export interface InventoryItemUpdateInput {
   reorderLevel?: number;
   supplier?: string;
   isActive?: boolean;
+  // organizationId is immutable after creation
 }

@@ -121,6 +121,7 @@ export async function POST(request: Request) {
       supplier: itemData.supplier,
       createdAt: itemData.createdAt,
       updatedAt: itemData.updatedAt,
+      organizationId: itemData.organizationId,
       isActive: itemData.isActive === 'true'
     };
     

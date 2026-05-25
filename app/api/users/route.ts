@@ -46,6 +46,7 @@ export async function GET(request: Request) {
           username: userWithoutPassword.username,
           email: userWithoutPassword.email,
           role: userWithoutPassword.role as 'super_admin' | 'admin' | 'employee' | 'cashier',
+          organizationId: userWithoutPassword.organizationId,
           createdAt: userWithoutPassword.createdAt,
           updatedAt: userWithoutPassword.updatedAt,
           isActive: userWithoutPassword.isActive === 'true'
@@ -68,15 +69,15 @@ export async function POST(request: Request) {
   }
   
   try {
-    const { username, email, role: newRole, password } = await request.json();
+    const { username, email, role: newRole, organizationId, password } = await request.json();
     
-    // Validate input
-    if (!username || !email || !newRole || !password) {
-      return NextResponse.json(
-        { error: 'Username, email, role, and password are required' },
-        { status: 400 }
-      );
-    }
+     // Validate input
+     if (!username || !email || !newRole || !organizationId || !password) {
+       return NextResponse.json(
+         { error: 'Username, email, role, organization ID, and password are required' },
+         { status: 400 }
+       );
+     }
     
     // Validate role
     const validRoles = ['super_admin', 'admin', 'employee', 'cashier'];
@@ -101,15 +102,16 @@ export async function POST(request: Request) {
     const hashedPassword = await hashPassword(password);
     const now = new Date().toISOString();
     
-    const newUser: Omit<User, 'passwordHash'> = {
-      id: userId,
-      username,
-      email,
-      role: newRole,
-      createdAt: now,
-      updatedAt: now,
-      isActive: true
-    };
+     const newUser: Omit<User, 'passwordHash'> = {
+       id: userId,
+       username,
+       email,
+       role: newRole,
+       organizationId, // Required for multi-tenancy
+       createdAt: now,
+       updatedAt: now,
+       isActive: true
+     };
     
     // Store user in Redis
     await redis.hSet(`user:${userId}`, 'id', userId);

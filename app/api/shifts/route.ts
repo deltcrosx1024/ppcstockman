@@ -27,22 +27,35 @@ export async function GET(request: Request) {
     const userId = payload.userId;
     const role = payload.role;
     
-    const { searchParams } = new URL(request.url);
-    const employeeId = searchParams.get('employeeId');
-    const date = searchParams.get('date'); // YYYY-MM-DD
-    const status = searchParams.get('status') as 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    
-    // Get shift IDs based on permissions
-    let shiftIds: string[] = [];
-    if (role === 'super_admin' || role === 'admin') {
-      // Admins can see all shifts
-      shiftIds = await redis.sMembers('shifts');
-    } else {
-      // Regular users see only their own shifts
-      shiftIds = await redis.sMembers(`user:${userId}:shifts`);
-    }
+     const { searchParams } = new URL(request.url);
+     const employeeId = searchParams.get('employeeId');
+     const date = searchParams.get('date'); // YYYY-MM-DD
+     const status = searchParams.get('status') as 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+     const page = parseInt(searchParams.get('page') || '1');
+     const limit = parseInt(searchParams.get('limit') || '10');
+     
+     // Get user data to get organizationId
+     const userData = await redis.hGetAll(`user:${payload.userId}`);
+     const organizationId = userData.organizationId;
+     
+     // Get shift IDs based on permissions and organization
+     let shiftIds: string[] = [];
+     if (role === 'super_admin') {
+         // Super admin can see all shifts, or optionally filter by organizationId from query
+         const orgIdFromQuery = searchParams.get('organizationId');
+         if (orgIdFromQuery) {
+             shiftIds = await redis.sMembers(`organization:${orgIdFromQuery}:shifts`);
+         } else {
+             // If no organization specified, get all shifts (using global set for simplicity)
+             shiftIds = await redis.sMembers('shifts');
+         }
+     } else if (role === 'admin') {
+         // Admin: see all shifts in their organization
+         shiftIds = await redis.sMembers(`organization:${organizationId}:shifts`);
+     } else {
+         // Regular user (employee/cashier): see only their own shifts
+         shiftIds = await redis.sMembers(`user:${payload.userId}:shifts`);
+     }
     
     // Apply filters
     if (employeeId && !(role === 'super_admin' || role === 'admin')) {
@@ -137,55 +150,74 @@ export async function POST(request: Request) {
     
     const userId = payload.userId;
     const role = payload.role;
+
+    const userData = await redis.hGetAll(`user:${payload.userId}`);
+    const organizationId = userData.organizationId;
     
-    // Determine whose shift we're creating
-    const { employeeId, date, startTime, notes } = await request.json();
-    let targetEmployeeId = userId;
-    if (role === 'super_admin' || role === 'admin') {
-      targetEmployeeId = employeeId || userId;
-      if (employeeId) {
-        const employeeData = await redis.hGetAll(`user:${employeeId}`);
-        if (Object.keys(employeeData).length === 0) {
-          return NextResponse.json(
-            { error: 'Employee not found' },
-            { status: 404 }
-          );
-        }
-        
-        if (employeeData.isActive !== 'true') {
-          return NextResponse.json(
-            { error: 'Employee is not active' },
-            { status: 400 }
-          );
-        }
-      }
-    }
-    if (!(role === 'super_admin' || role === 'admin')) {
-      // Non-admins can only create shifts for themselves
-      targetEmployeeId = userId;
-    } else {
-      // Admins can create shifts for others, but validate the employee exists
-      if (employeeId) {
-        const employeeData = await redis.hGetAll(`user:${employeeId}`);
-        if (Object.keys(employeeData).length === 0) {
-          return NextResponse.json(
-            { error: 'Employee not found' },
-            { status: 404 }
-          );
-        }
-        
-        // Additional validation: check if the employee is active
-        if (employeeData.isActive !== 'true') {
-          return NextResponse.json(
-            { error: 'Employee is not active' },
-            { status: 400 }
-          );
-        }
-      } else {
-        // If no employeeId provided, default to the requesting user
-        targetEmployeeId = userId;
-      }
-    }
+     // Determine whose shift we're creating
+     const { employeeId, date, startTime, notes } = await request.json();
+     let targetEmployeeId = userId;
+     if (role === 'super_admin' || role === 'admin') {
+         targetEmployeeId = employeeId || userId;
+         if (employeeId) {
+             const employeeData = await redis.hGetAll(`user:${employeeId}`);
+             if (Object.keys(employeeData).length === 0) {
+                 return NextResponse.json(
+                   { error: 'Employee not found' },
+                   { status: 404 }
+                 );
+             }
+             
+             if (employeeData.isActive !== 'true') {
+                 return NextResponse.json(
+                   { error: 'Employee is not active' },
+                   { status: 400 }
+                 );
+             }
+             
+             // Ensure employee belongs to same organization (except super_admin who can override)
+             if (role === 'admin' && employeeData.organizationId !== organizationId) {
+                 return NextResponse.json(
+                   { error: 'Cannot create shift for employee from different organization' },
+                   { status: 403 }
+                 );
+             }
+         }
+     }
+     if (!(role === 'super_admin' || role === 'admin')) {
+         // Non-admins can only create shifts for themselves
+         targetEmployeeId = userId;
+     } else {
+         // Admins can create shifts for others, but validate the employee exists
+         if (employeeId) {
+             const employeeData = await redis.hGetAll(`user:${employeeId}`);
+             if (Object.keys(employeeData).length === 0) {
+                 return NextResponse.json(
+                   { error: 'Employee not found' },
+                   { status: 404 }
+                 );
+             }
+             
+             // Additional validation: check if the employee is active
+             if (employeeData.isActive !== 'true') {
+                 return NextResponse.json(
+                   { error: 'Employee is not active' },
+                   { status: 400 }
+                 );
+             }
+             
+             // Ensure employee belongs to same organization (except super_admin who can override)
+             if (role === 'admin' && employeeData.organizationId !== organizationId) {
+                 return NextResponse.json(
+                   { error: 'Cannot create shift for employee from different organization' },
+                   { status: 403 }
+                 );
+             }
+         } else {
+             // If no employeeId provided, default to the requesting user
+             targetEmployeeId = userId;
+         }
+     }
     
     // Validate input
     if (!targetEmployeeId || !date || !startTime) {
@@ -232,19 +264,20 @@ export async function POST(request: Request) {
       updatedAt: now
     };
     
-    // Store shift in Redis
-    await redis.hSet(`shift:${shiftId}`, 'id', shiftId);
-    await redis.hSet(`shift:${shiftId}`, 'employeeId', targetEmployeeId);
-    await redis.hSet(`shift:${shiftId}`, 'date', date);
-    await redis.hSet(`shift:${shiftId}`, 'startTime', startTime);
-    await redis.hSet(`shift:${shiftId}`, 'status', 'scheduled');
-    await redis.hSet(`shift:${shiftId}`, 'notes', notes || '');
-    await redis.hSet(`shift:${shiftId}`, 'createdAt', now);
-    await redis.hSet(`shift:${shiftId}`, 'updatedAt', now);
-    
-    // Add to user's shifts set and general shifts set
-    await redis.sAdd(`user:${targetEmployeeId}:shifts`, shiftId);
-    await redis.sAdd('shifts', shiftId);
+     // Store shift in Redis
+     await redis.hSet(`shift:${shiftId}`, 'id', shiftId);
+     await redis.hSet(`shift:${shiftId}`, 'employeeId', targetEmployeeId);
+     await redis.hSet(`shift:${shiftId}`, 'date', date);
+     await redis.hSet(`shift:${shiftId}`, 'startTime', startTime);
+     await redis.hSet(`shift:${shiftId}`, 'status', 'scheduled');
+     await redis.hSet(`shift:${shiftId}`, 'notes', notes || '');
+     await redis.hSet(`shift:${shiftId}`, 'createdAt', now);
+     await redis.hSet(`shift:${shiftId}`, 'updatedAt', now);
+     
+     // Add to user's shifts set, organization shifts set, and general shifts set
+     await redis.sAdd(`user:${targetEmployeeId}:shifts`, shiftId);
+     await redis.sAdd(`organization:${organizationId}:shifts`, shiftId);
+     await redis.sAdd('shifts', shiftId);
     
     return NextResponse.json(
       { message: 'Shift created successfully', shift: newShift },
