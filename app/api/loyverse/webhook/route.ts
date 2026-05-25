@@ -108,35 +108,37 @@ export async function POST(request: Request) {
                    Array.isArray(payload.items) ? payload.items :
                    [payload];
                    
-      for (const itemData of items) {
-        try {
-          await processLoyverseItem(itemData);
-          processedCount++;
-        } catch (error) {
-          errors.push(`Failed to process item ${itemData.id ?? itemData.barcode ?? 'unknown'}: ${error.message}`);
-        }
-      }
+       for (const itemData of items) {
+         try {
+           await processLoyverseItem(itemData);
+           processedCount++;
+         } catch (error) {
+           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+           errors.push(`Failed to process item ${itemData.id ?? itemData.barcode ?? 'unknown'}: ${errorMessage}`);
+         }
+       }
     } else if (eventType === 'item.deleted') {
       // Handle item deletion
       const items = Array.isArray(payload.data) ? payload.data :
                    Array.isArray(payload.items) ? payload.items :
                    [payload];
                    
-      for (const itemData of items) {
-        try {
-          const barcode = String(itemData.barcode ?? itemData.sku ?? itemData.item_code ?? '').trim();
-          if (barcode) {
-            const existingId = await redis.get(`inventory:barcode:${barcode}`);
-            if (existingId) {
-              await redis.hSet(`inventory:item:${existingId}`, 'isActive', 'false');
-              await redis.hSet(`inventory:item:${existingId}`, 'updatedAt', new Date().toISOString());
-              processedCount++;
-            }
-          }
-        } catch (error) {
-          errors.push(`Failed to delete item ${itemData.id ?? 'unknown'}: ${error.message}`);
-        }
-      }
+       for (const itemData of items) {
+         try {
+           const barcode = String(itemData.barcode ?? itemData.sku ?? itemData.item_code ?? '').trim();
+           if (barcode) {
+             const existingId = await redis.get(`inventory:barcode:${barcode}`);
+             if (existingId) {
+               await redis.hSet(`inventory:item:${existingId}`, 'isActive', 'false');
+               await redis.hSet(`inventory:item:${existingId}`, 'updatedAt', new Date().toISOString());
+               processedCount++;
+             }
+           }
+         } catch (error) {
+           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+           errors.push(`Failed to delete item ${itemData.id ?? 'unknown'}: ${errorMessage}`);
+         }
+       }
     } else {
       // Unknown event type - log but don't fail
       console.warn(`Unhandled Loyverse event type: ${eventType}`);
