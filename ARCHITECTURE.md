@@ -74,7 +74,8 @@ ppcstockman/
 - `app/api/inventory/label/route.ts`
 - `app/api/inventory/budget/route.ts`
 - `app/api/inventory/import/route.ts`
-- `app/api/loyverse/webhook/route.ts` (Loyverse API integration)
+- `app/api/loyverse/webhook/route.ts` (Loyverse API webhook for real-time sync)
+- `app/api/loyverse/route.ts` (Loyverse API integration for custom apps)
 
 **Features**:
 - Item tracking with name, description, barcode, category, pricing
@@ -84,6 +85,7 @@ ppcstockman/
 - Daily budget tracking (input/output value summary)
 - Bulk import capabilities
 - Loyverse API integration via webhook endpoint for real-time synchronization
+- Loyverse API integration for custom apps (GET, POST, PUT, DELETE endpoints)
 
 **Redis Schema**:
 - `inventory:item:{itemId}` - Hash storing item details
@@ -214,6 +216,7 @@ with appropriate HTTP status codes (400, 401, 403, 404, 500).
    UPSTASH_REDIS_REST_TOKEN=your_upstash_token
    JWT_SECRET=your_jwt_secret
    LOYVERSE_WEBHOOK_TOKEN=your_loyverse_webhook_token
+   LOYVERSE_APP_TOKEN=your_loyverse_app_token
    ```
 3. Run `npm install`
 4. Run `npm run dev`
