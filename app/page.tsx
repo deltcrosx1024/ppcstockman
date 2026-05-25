@@ -1,65 +1,106 @@
-import Image from "next/image";
+"use client";
+
+import { FormEvent, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
+  const router = useRouter();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setStatus(null);
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setStatus({ type: 'error', message: data?.error || 'Login failed' });
+      } else {
+        // store token for client usage and navigate to dashboard
+        if (data?.token) {
+          try {
+            localStorage.setItem('ppc_token', data.token);
+          } catch (e) {
+            // ignore storage errors
+          }
+        }
+        setStatus({ type: 'success', message: data?.message || 'Login successful' });
+        router.push('/dashboard');
+      }
+    } catch (error) {
+      setStatus({ type: 'error', message: 'Network error — please try again.' });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="page-wrapper login-wrapper">
+      <div className="login-card">
+        <div className="login-header">
+          <div className="login-brand">
+            <span className="brand-mark">PPC</span>
+            <div>
+              <strong>PPC Stock Management</strong>
+              <p>Access the warehouse, inventory, and POS dashboard.</p>
+            </div>
+          </div>
+          <p className="login-intro">Sign in with your username and password to continue.</p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+
+        <form className="login-form" onSubmit={handleSubmit}>
+          <label className="form-label">
+            Username
+            <input
+              className="input-field"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              placeholder="admin"
+              autoComplete="username"
+              required
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+          </label>
+
+          <label className="form-label">
+            Password
+            <input
+              type="password"
+              className="input-field"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="••••••••"
+              autoComplete="current-password"
+              required
+            />
+          </label>
+
+          <div className="form-actions">
+            <button type="submit" className="button button-primary" disabled={loading}>
+              {loading ? 'Signing in…' : 'Sign in'}
+            </button>
+          </div>
+
+          {status ? (
+            <div className={`status-message ${status.type === 'success' ? 'status-success' : 'status-error'}`}>
+              {status.message}
+            </div>
+          ) : null}
+
+          <p className="login-note">
+            This is a prototype login page. If the username does not exist yet, it will be created automatically.
+          </p>
+        </form>
+      </div>
+    </main>
   );
 }
